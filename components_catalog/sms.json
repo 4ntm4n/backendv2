@@ -1,16 +1,20 @@
 {
-  "SMS-25": {
+  "SMS_25": {
     "diameter": 25.0,
     "thickness": 1.2,
-    "bend_radius": 25.0,
+    "bend_radius": 38.0,
+    "default_preferred_min_tangent": 12.5,
     "components": {
       "BEND_90": {
         "center_to_end": 51.0,
-        "build_operation": "build_bend_solid"
+        "build_operation": "sweep_arc"
       },
       "BEND_45": {
-        "b_dimension": 24.0,
-        "build_operation": "build_bend_solid"
+        "b_dimension": 31.0,
+        "build_operation": "sweep_arc"
+      },
+      "REDUCER": {
+        "build_operation": "loft"
       },
       "TEE": {
         "equal_cte_run": 51.0,
@@ -20,59 +24,70 @@
       "SMS_CLAMP": {
         "tangent": 20.0,
         "min_tangent": 8.0,
+        "preferred_min_tangent": 15.0,
         "sketch_file": "sms_clamp_25.fcstd",
         "build_operation": "revolve"
       }
     }
   },
-  "SMS-38": {
+  "SMS_38": {
     "diameter": 38.0,
     "thickness": 1.2,
-    "bend_radius": 38.0,
+    "bend_radius": 57.0,
+    "default_preferred_min_tangent": 12.5,
     "components": {
       "BEND_90": {
-        "center_to_end": 70.0,
-        "build_operation": "build_bend_solid"
+        "center_to_end": 76.0,
+        "build_operation": "sweep_arc"
       },
       "BEND_45": {
-        "b_dimension": 34.0,
-        "build_operation": "build_bend_solid"
+        "b_dimension": 46.0,
+        "build_operation": "sweep_arc"
+      },
+      "REDUCER": {
+        "build_operation": "loft"
       },
       "TEE": {
-        "equal_cte_run": 70.0,
-        "equal_cte_branch": 70.0,
+        "equal_cte_run": 76.0,
+        "equal_cte_branch": 76.0,
         "build_operation": "build_tee_solid"
       },
       "SMS_CLAMP": {
-        "tangent": 25.1,
-        "min_tangent": 10.0,
-        "sketch_file": "sms_clamp_base.fcstd",
+        "tangent": 20.0,
+        "min_tangent": 8.0,
+        "preferred_min_tangent": 15.0,
+        "sketch_file": "sms_clamp_38.fcstd",
         "build_operation": "revolve"
       }
     }
   },
-  "SMS-51": {
+  "SMS_51": {
     "diameter": 51.0,
     "thickness": 1.2,
-    "bend_radius": 51.0,
+    "bend_radius": 76.0,
+    "default_preferred_min_tangent": 12.5,
     "components": {
       "BEND_90": {
-        "center_to_end": 83.0,
-        "build_operation": "build_bend_solid"
+        "center_to_end": 101.0,
+        "build_operation": "sweep_arc"
       },
       "BEND_45": {
-        "b_dimension": 43.0,
-        "build_operation": "build_bend_solid"
+        "b_dimension": 62.0,
+        "build_operation": "sweep_arc"
+      },
+      "REDUCER": {
+        "build_operation": "loft"
       },
       "TEE": {
-        "equal_cte_run": 83.0,
-        "equal_cte_branch": 83.0,
+        "equal_cte_run": 101.0,
+        "equal_cte_branch": 101.0,
         "build_operation": "build_tee_solid"
       },
       "SMS_CLAMP": {
-        "tangent": 28.0,
-        "min_tangent": 12.0,
-        "sketch_file": "sms_clamp_large.fcstd",
+        "tangent": 20.0,
+        "min_tangent": 8.0,
+        "preferred_min_tangent": 15.0,
+        "sketch_file": "sms_clamp_51.fcstd",
         "build_operation": "revolve"
       }
     }
