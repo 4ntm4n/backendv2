@@ -71,12 +71,12 @@ class TopologyBuilder:
         """
         angle_deg = angle_deg % 360
         standard_directions = {
-            30.0:  Vec3(-1.0, 0.0, 0.0),   # +y (Grön) = Korrekt
-            90.0:  Vec3(0.0, 0.0, -1.0),   # +Z (Blå) = Korrekt
-            150.0: Vec3(0.0, 1.0, 0.0),  # -X (Röd) = Korrekt
-            210.0: Vec3(1.0, 0.0, 0.0),  # -Y (Grön) = Korrekt
-            270.0: Vec3(0.0, 0.0, 1.0),  # -Z (Blå) = Korrekt
-            330.0: Vec3(0.0, -1.0, 0.0)    # +X (Röd) = Korrekt
+            30.0:  Vec3(1.0, 0.0, 0.0),    # +X
+            90.0:  Vec3(0.0, 0.0, -1.0),   # -Z
+            150.0: Vec3(0.0, -1.0, 0.0),   # -Y
+            210.0: Vec3(-1.0, 0.0, 0.0),   # -X
+            270.0: Vec3(0.0, 0.0, 1.0),    # +Z
+            330.0: Vec3(0.0, 1.0, 0.0)     # +Y
         }
 
 

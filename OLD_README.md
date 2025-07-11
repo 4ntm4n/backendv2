@@ -10,7 +10,7 @@ Hela logiken för att omvandla en skiss till en 3D-modell kommer att ligga i ett
 lineshape-backend\_v2/  
 ├── components\_catalog/  
 │   ├── sms.json  
-│   ├── iso.json  
+│   ├── iso.json 
 │   └── loader.py  
 ├── contracts/  
 │   └── ... (protobuf-filer)  

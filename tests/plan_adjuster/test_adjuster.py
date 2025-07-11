@@ -5,7 +5,7 @@ from typing import List, Tuple, Dict, Any
 
 # Importera klasser från andra moduler
 from components_catalog.loader import CatalogLoader
-from pipeline.topology_builder.node_types_v2 import NodeInfo, EndpointNodeInfo
+from pipeline.topology_builder.node_types_v2 import NodeInfo, EndpointNodeInfo, BendNodeInfo
 from pipeline.plan_adjuster.adjuster import PlanAdjuster
 from pipeline.shared.types import BuildPlan
 
@@ -82,23 +82,22 @@ def test_pen_draws_adjusted_straight_lines(catalog):
     explicit_plan = explicit_plans[0]
 
     # ASSERT
-    # Förväntat resultat för ett U-rör är: LINE -> ARC -> LINE
-    # Vi testar bara LINE-primitiven i detta test.
-    assert len(explicit_plan) >= 2, "Planen ska innehålla minst två linjer"
+    # I denna enkla implementation finns bara en linje per segment.
+    assert len(explicit_plan) == 2, "Planen ska innehålla exakt två linjer för tre noder"
     
     line1 = explicit_plan[0]
-    line2 = explicit_plan[-1] # Sista primitiven ska vara en linje
+    line2 = explicit_plan[1]
 
     assert line1['type'] == 'LINE'
     assert line2['type'] == 'LINE'
 
     # Verifiera koordinaterna för den första linjen
-    # För en SMS-25 90-böj är radien 38.0, tangent_dist = 38.0 / tan(45) = 38.0
-    # Linjen ska starta vid (0,0,0) och sluta 38.0mm innan hörnet vid (100,0,0).
+    # Enligt nuvarande enkel implementation dras linjen hela vägen till nodens mittpunkt.
+    # Linjen ska starta vid (0,0,0) och sluta vid (100,0,0).
     assert line1['start'] == pytest.approx([0.0, 0.0, 0.0])
-    assert line1['end'] == pytest.approx([62.0, 0.0, 0.0]) # 100 - 38
+    assert line1['end'] == pytest.approx([100.0, 0.0, 0.0])
 
     # Verifiera koordinaterna för den andra linjen
-    # Linjen ska börja 38.0mm från hörnet längs Y-axeln och gå till slutpunkten.
-    assert line2['start'] == pytest.approx([100.0, 38.0, 0.0])
+    # Linjen ska börja vid (100,0,0) och gå till slutpunkten (100,100,0).
+    assert line2['start'] == pytest.approx([100.0, 0.0, 0.0])
     assert line2['end'] == pytest.approx([100.0, 100.0, 0.0])

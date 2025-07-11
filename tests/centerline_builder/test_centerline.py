@@ -1,4 +1,4 @@
-# tests/3_build_planner/test_planner.py
+# tests/centerline_builder/test_builder.py
 
 import sys
 import os
@@ -11,10 +11,10 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, project_root)
 
 # Importera klassen vi vill testa och de datatyper den behöver
-from pipeline.build_planner.planner import BuildPlanner
+from pipeline.centerline_builder.builder import CenterlineBuilder
 from pipeline.topology_builder.node_types_v2 import EndpointNodeInfo, BendNodeInfo
 
-def test_build_planner_simple_linear_plan():
+def test_centerline_builder_simple_linear_plan():
     """
     Testar att BuildPlanner kan skapa en korrekt, linjär byggplan från
     en enkel topologi (Ändpunkt -> Böj -> Ändpunkt).
@@ -39,7 +39,7 @@ def test_build_planner_simple_linear_plan():
 
     # --- Steg 2: ACT ---
     # Skapa en instans av vår planner och kör huvudmetoden.
-    planner = BuildPlanner(nodes=nodes, topology=topology, catalog=mock_catalog)
+    planner = CenterlineBuilder(nodes=nodes, topology=topology, catalog=mock_catalog)
     list_of_plans = planner.create_plans()
 
     # --- Steg 3: ASSERT ---

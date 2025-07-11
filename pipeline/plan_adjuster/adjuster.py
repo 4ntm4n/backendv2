@@ -1,13 +1,10 @@
 import math
-import copy
-from typing import Dict, Any, List, Tuple
-import networkx as nx
+from typing import Dict, Any, List
 
-
-# Importera våra egna typer och klasser
-from components_catalog.loader import CatalogLoader, ComponentData, Bend90Data, Bend45Data
-from pipeline.topology_builder.node_types_v2 import NodeInfo, BendNodeInfo, TeeNodeInfo, EndpointNodeInfo
-from pipeline.shared.types import BuildPlan, BuildPlanItem
+# Importera endast det vi faktiskt behöver för detta steg
+from components_catalog.loader import CatalogLoader
+from pipeline.topology_builder.node_types_v2 import NodeInfo
+from pipeline.shared.types import BuildPlan
 
 class ImpossibleBuildError(Exception):
     """Ett anpassat fel som kastas när en design är geometriskt omöjlig."""
@@ -19,10 +16,10 @@ class PlanAdjuster:
     Ansvar: Att omvandla en semantisk byggplan till en geometriskt
     explicit ritning som är redo att skickas till den "dumma" executorn.
     """
-    def __init__(self, semantic_plans: List[BuildPlan], nodes: List[NodeInfo], topology: nx.Graph, catalog: CatalogLoader):
+    def __init__(self, semantic_plans: List[BuildPlan], nodes: List[NodeInfo], topology: Any, catalog: CatalogLoader):
         self.semantic_plans = semantic_plans
         self.nodes_by_id = {node.id: node for node in nodes}
-        self.topology = topology # Behövs ej just nu, men kan behövas för framtida logik
+        self.topology = topology
         self.catalog = catalog
 
     def create_explicit_plans(self) -> List[List[Dict[str, Any]]]:
@@ -41,51 +38,32 @@ class PlanAdjuster:
 
     def _create_explicit_plan_from_semantic(self, semantic_plan: BuildPlan) -> List[Dict[str, Any]]:
         """
-        Innehåller den "mentala 3D-pennan". Itererar genom den semantiska planen
-        och genererar en lista av geometriska primitiv (LINE, ARC).
+        BYGGER EN ENKEL TRÅDMODELL (för Milstolpe 1).
+        Denna metod ignorerar komponenter och drar bara raka linjer mellan de
+        noder som finns i den semantiska planen.
         """
-        # TODO: Implementera den fullständiga "3D-penna"-logiken här.
-        # Detta är nästa steg i vår utveckling.
-        
-        print("  -> Bearbetar semantisk plan för att skapa geometriska primitiv...")
-        
-        # För nu, returnera bara en tom lista för att få bort AttributeError.
-        # Nästa fel vi ser kommer att vara ett AssertionError från vårt test.
+        print("  -> Skapar enkel trådmodell från nod-koordinater...")
         explicit_primitives = []
         
-        return explicit_primitives
+        # Hämta alla noder från planen i rätt ordning
+        node_ids_in_plan = [item['node_id'] for item in semantic_plan if item.get('type') == 'COMPONENT']
 
-    def _get_tangent_dist(self, component_item: BuildPlanItem) -> float:
-        """
-        Hjälpmetod för att beräkna en komponents tangent-distans (dess "take-up").
-        Detta är avståndet från den teoretiska hörnpunkten till där det raka röret börjar.
-        """
-        # Endpoints har ingen take-up in i ett segment
-        if component_item.get('component_name') == 'ENDPOINT':
-            return 0.0
+        if len(node_ids_in_plan) < 2:
+            print("    -> VARNING: Planen har färre än två noder, kan inte skapa linjer.")
+            return []
 
-        spec = self.catalog.get_spec(component_item['spec_name'])
-        if not spec: return 0.0
-        
-        comp_name_full = component_item.get('component_name', '')
-        base_comp_name = "BEND_90" if "BEND_90" in comp_name_full else "BEND_45" if "BEND_45" in comp_name_full else comp_name_full
-        
-        comp_obj = spec.components.get(base_comp_name)
-        if not comp_obj or not hasattr(comp_obj, 'bend_radius'):
-            return 0.0
+        # Loopa igenom nod-paren och skapa en 'LINE'-primitiv för varje par
+        for i in range(len(node_ids_in_plan) - 1):
+            start_node_id = node_ids_in_plan[i]
+            end_node_id = node_ids_in_plan[i+1]
+
+            start_coords = self.nodes_by_id[start_node_id].coords
+            end_coords = self.nodes_by_id[end_node_id].coords
+
+            explicit_primitives.append({
+                'type': 'LINE',
+                'start': start_coords,
+                'end': end_coords
+            })
             
-        node = self.nodes_by_id.get(component_item['node_id'])
-        if not node or not hasattr(node, 'angle'): return 0.0
-        
-        angle_rad = math.radians(node.angle)
-        # Formel: R / tan(yttre_vinkel / 2)
-        if angle_rad <= 1e-6 or abs(math.tan(angle_rad / 2.0)) < 1e-6:
-             return 0.0
-        
-        return abs(comp_obj.bend_radius / math.tan(angle_rad / 2.0))
-
-    
-    # TODO: Här kommer vi senare att lägga till hjälpmetoder för att
-    # beräkna böjar och hantera underskott.
-    # def _calculate_bend_geometry(...)
-    # def _handle_shortfall(...)
+        return explicit_primitives

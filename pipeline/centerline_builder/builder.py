@@ -5,7 +5,7 @@ from components_catalog.loader import CatalogLoader
 from pipeline.topology_builder.node_types_v2 import NodeInfo, EndpointNodeInfo, BendNodeInfo, TeeNodeInfo
 from pipeline.shared.types import BuildPlanItem
 
-class BuildPlanner:
+class CenterlineBuilder:
     """
     Översätter en berikad topologi-graf till en lista av sekventiella byggplaner.
     """
@@ -20,7 +20,7 @@ class BuildPlanner:
         """
         Huvudmetod som hittar alla startpunkter och genererar en byggplan för varje gren.
         """
-        print("--- Modul 3 (Build Planner): Startar ---")
+        print("--- Modul 3 (Centerline Builder): Startar ---")
         all_plans: List[List[BuildPlanItem]] = []
         
         start_nodes = [node for node in self.nodes if isinstance(node, EndpointNodeInfo)]
@@ -37,13 +37,43 @@ class BuildPlanner:
             if plan:
                 all_plans.append(plan)
 
-        print(f"--- Build Planner: Klar. {len(all_plans)} byggplan(er) skapade. ---")
+        print(f"--- Centerline Builder: Klar. {len(all_plans)} byggplan(er) skapade. ---")
         return all_plans
+
+    def _find_next_node(self, current_node: NodeInfo, previous_node_id: Optional[str]) -> Optional[str]:
+        """
+        En smartare hjälpmetod för att avgöra vilken nod som ska besökas härnäst.
+        Prioriterar den raka vägen ("the run") vid T-korsningar.
+        """
+        # Hämta alla möjliga vägar framåt (alla grannar utom den vi kom ifrån)
+        potential_paths = [n_id for n_id in self.topology.neighbors(current_node.id) if n_id != previous_node_id]
+
+        # Filtrera bort vägar (kanter) som redan har besökts
+        unvisited_paths = []
+        for neighbor_id in potential_paths:
+            edge_tuple = tuple(sorted((current_node.id, neighbor_id)))
+            if edge_tuple not in self.visited_edges:
+                unvisited_paths.append(neighbor_id)
+        
+        if not unvisited_paths:
+            return None
+
+        # Om det är ett T-rör, försök hitta den fortsatta "run"-noden
+        if isinstance(current_node, TeeNodeInfo):
+            # Leta efter en nod i unvisited_paths som också finns i run_node_ids
+            for node_id in unvisited_paths:
+                if node_id in current_node.run_node_ids:
+                    # Vi har hittat den raka vägen framåt!
+                    return node_id
+        
+        # Om det inte är ett T-rör, eller om "run"-vägen redan var besökt,
+        # ta bara den första bästa tillgängliga obesökta vägen.
+        return unvisited_paths[0]
 
     def _traverse_and_build_plan(self, start_node: NodeInfo) -> List[BuildPlanItem]:
         """
         Implementerar "vandringen" för att bygga en enskild, linjär byggplan.
-        Stannar när den når en redan besökt kant.
+        Använder nu den smartare _find_next_node-metoden.
         """
         print(f"  -> Bygger plan som startar från nod {start_node.id[:8]}...")
         
@@ -55,18 +85,8 @@ class BuildPlanner:
             if component_item := self._create_component_item(current_node):
                 plan.append(component_item)
 
-            # ### NY, SMARTARE LOGIK FÖR ATT HITTA NÄSTA STEG ###
-            next_node_id = None
-            for neighbor in self.topology.neighbors(current_node.id):
-                # Ignorera noden vi precis kom ifrån
-                if neighbor == previous_node_id:
-                    continue
-                
-                # Kontrollera om kanten till denna granne redan har besökts
-                edge_tuple = tuple(sorted((current_node.id, neighbor)))
-                if edge_tuple not in self.visited_edges:
-                    next_node_id = neighbor
-                    break # Vi har hittat vår nästa, obesökta väg
+            # ### ERSÄTT DEN GAMLA LOGIKEN MED ETT ANROP TILL DEN NYA HJÄLPMETODEN ###
+            next_node_id = self._find_next_node(current_node, previous_node_id)
 
             if next_node_id:
                 edge_tuple = tuple(sorted((current_node.id, next_node_id)))
@@ -78,7 +98,6 @@ class BuildPlanner:
                 previous_node_id = current_node.id
                 current_node = self.nodes_by_id.get(next_node_id)
             else:
-                # Ingen obesökt väg framåt, denna gren är klar.
                 current_node = None
         
         return plan
