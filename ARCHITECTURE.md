@@ -387,63 +387,98 @@ class ComponentFactory:
 
 Genom att isolera all komponent-specifik logik här, inklusive taggningen av 3D-operationer, uppnår vi vårt mål om ett extremt utbyggbart system. CenterlineBuilder kan sedan använda denna fabrik för att få korrekta "subassemblies" utan att behöva känna till deras interna logik.
 
-## **Modul 5: Byggmästaren (**CenterlineBuilder**)**
+
+# **Modul 5: Byggmästaren (CenterlineBuilder)**
 
 ### **1\. Syfte och Ansvar**
 
-* **Syfte:** Att agera som den centrala byggmotorn i systemet. Den tar en enkel, sekventiell "resplan" och omvandlar den till en komplett, geometriskt perfekt och detaljerad bygghandling (den oändligt tunna centrumlinjen).  
+* **Syfte:** Att agera som den centrala byggmotorn i systemet. Den tar en enkel, sekventiell "resplan" och omvandlar den till en komplett och detaljerad **bygghandling** (DrawingPlan). Denna handling är designad för att vara extremt enkel för den slutgiltiga 3D-renderingen, samtidigt som den behåller en rik, hierarkisk förståelse av komponenterna för avancerade funktioner.  
 * **Enskilt Ansvar:**  
   1. **Följa Planen:** Att sekventiellt stega igenom en resplan från Planner.  
-  2. **Använda Fabriken:** Att för varje NODE\-steg i planen, anropa ComponentFactory för att få den korrekta, lokala geometrin för komponenten.  
-  3. **Beräkna Raka Rör:** Att för varje EDGE\-steg i planen, beräkna den exakta längden på det raka rörsegment som behövs för att ansluta de två omgivande komponenterna.  
-  4. **Montera Geometrin:** Att sammanfoga komponenternas geometri med de raka rörens geometri till en enda, kontinuerlig och korrekt centrumlinje.
+  2. **Använda Fabriken:** Att för varje NODE-steg i planen, anropa ComponentFactory för att få en "sub-assembly" av geometriska primitiv (linjer, bågar) för komponenten.  
+  3. **Beräkna Raka Rör:** Att för varje EDGE-steg i planen, beräkna den exakta längden på det raka rörsegment som behövs för att ansluta de två omgivande komponenterna.  
+  4. **Skapa Bygghandling (DrawingPlan):** Att sammanfoga all geometri till en DrawingPlan. Detta innebär att:  
+     * Skapa en platt lista av primitiva kommandon (Build Plan).  
+     * Tilldela varje primitiv ett unikt primitive\_id.  
+     * Gruppera dessa primitive\_id:n under ett logiskt group\_id för varje komponent i en Assembly Map.
 
 ### **2\. Dataflöde**
 
 * **Indata:** En enskild resplan (List\[Dict\[str, str\]\]) från Planner, samt tillgång till ComponentFactory, TopologyBuilders graf och nodlista.  
-* **Utdata:** En enda, komplett lista av geometriska primitiv (List\[Dict\[str, Any\]\]). Denna lista är den slutgiltiga bygghandlingen, redo att skickas till Adjuster eller GeometryExecutor.
+* **Utdata:** Ett enda DrawingPlan-objekt. Detta objekt är en container som innehåller två distinkta datastrukturer: Build Plan och Assembly Map.
 
-### **3\. Design av Utdata**
+### **3\. Design av Utdata (DrawingPlan)**
 
-Utdata är en detaljerad, "taggad" lista som GeometryExecutor kan följa blint.
+Utdata är designat för att tjäna två syften samtidigt: en simpel exekveringslista för "robotarmen" och en rik, spårbar karta för intelligenta funktioner.
 
-\# Exempel på den detaljerade bygghandling som CenterlineBuilder producerar  
-centerline\_primitives \= \[  
-    \# Geometri för första komponenten (en böj)  
-    {'type': 'LINE', 'length': 32.0, 'is\_tangent': True, 'build\_operation': 'sweep'},  
-    {'type': 'ARC', 'radius': 38.0, 'angle': 90.0, 'build\_operation': 'sweep'},  
-    {'type': 'LINE', 'length': 32.0, 'is\_tangent': True, 'build\_operation': 'sweep'},  
+A) Build Plan (För Robotarmen, Modul 7\)  
+En platt lista av primitiva kommandon. Varje kommando är en dictionary med ett unikt ID.  
+// Exempel på Build Plan  
+"build\_plan": \[  
+    // Geometri för första komponenten (en böj, grupp: group\_bend\_1)  
+    { "primitive\_id": "prim\_001", "group\_id": "group\_bend\_1", "type": "LINE", "length": 32.0, ... },  
+    { "primitive\_id": "prim\_002", "group\_id": "group\_bend\_1", "type": "ARC",  "radius": 38.0, ... },  
+    { "primitive\_id": "prim\_003", "group\_id": "group\_bend\_1", "type": "LINE", "length": 32.0, ... },  
       
-    \# Rakt rör som ansluter  
-    {'type': 'LINE', 'length': 860.0, 'is\_tangent': False, 'build\_operation': 'sweep'},
+    // Rakt rör som ansluter (grupp: group\_pipe\_1)  
+    { "primitive\_id": "prim\_004", "group\_id": "group\_pipe\_1", "type": "LINE", "length": 860.0, ... },
 
-    \# Geometri för nästa komponent (ett T-rör)  
-    {'type': 'LINE', 'length': 51.0, 'is\_tangent': True, 'build\_operation': 'sweep'},  
-    \# ... etc.  
+    // Geometri för nästa komponent (ett T-rör, grupp: group\_tee\_1)  
+    { "primitive\_id": "prim\_005", "group\_id": "group\_tee\_1", "type": "LINE", "length": 51.0, ... }  
 \]
 
-### **4\. Logiskt Flöde (En-stegs-metoden)**
+B) Assembly Map (För Exploded View, Adjuster, BOM etc.)  
+En dictionary som mappar ett logiskt group\_id till de primitive\_id:n som bygger upp den.  
+// Exempel på Assembly Map  
+"assembly\_map": {  
+    "group\_bend\_1": {  
+        "component\_type": "Bend",  
+        "source\_node\_id": "node\_id\_1",  
+        "primitives": \["prim\_001", "prim\_002", "prim\_003"\]  
+    },  
+    "group\_pipe\_1": {  
+        "component\_type": "Pipe",  
+        "source\_edge\_id": "edge\_id\_1",  
+        "primitives": \["prim\_004"\]  
+    },  
+    "group\_tee\_1": {  
+        "component\_type": "Tee",  
+        "source\_node\_id": "node\_id\_2",  
+        "primitives": \["prim\_005", ... \]  
+    }  
+}
 
-Modulen använder "3D-penna"-metaforen för att sekventiellt bygga upp centrumlinjen.
+### **4\. Logiskt Flöde (Två-pass-metoden)**
 
-1. **Initiera Pennan:** Startar en "penna" med en position och en riktning vid startpunkten för den givna resplanen.  
-2. **Loopa Genom Planen:** Itererar igenom varje steg (NODE eller EDGE) i resplanen.  
-   * **Om steget är** NODE**:**  
-     1. Anropar ComponentFactory för att få den lokala geometrin för noden (t.ex. \[LINE, ARC, LINE\]).  
-     2. För varje primitiv i den returnerade geometrin: "ritar" den (dvs. beräknar dess slutpunkt och lägger till den i den slutgiltiga listan) och uppdaterar pennans position och riktning.  
-   * **Om steget är** EDGE**:**  
-     1. Använder sin **två-pass-metod (Mät & Diagnos)** för att beräkna den exakta längden på det raka röret.  
-     2. Om längden är negativ (överlapp), anropas Adjuster\-modulen för att få en korrigerad lösning.  
-     3. "Ritar" det raka röret med den korrekta längden och uppdaterar pennans position.  
-3. **Slutförande:** När loopen är klar, returneras den kompletta listan av geometriska primitiv.
+Modulen använder en robust två-stegs-process för att bygga upp DrawingPlan, vilket separerar ansvaret för komponentplacering från anslutningslogik.
 
-### **5\. Kodskelett (**centerline\_builder.py**)**
+1. **Initiera Planen:** Skapar ett tomt DrawingPlan-objekt. Initierar en "3D-penna" med en startposition och riktning.  
+2. **Pass 1: Placera Komponenter:** Modulen itererar igenom resplanen och hanterar **endast** NODE-stegen.  
+   * För varje NODE-steg:  
+     1. Skapar ett nytt group\_id för komponenten.  
+     2. Anropar ComponentFactory för att få en lista av standard-primitiver för noden (t.ex. \[tangent, båge, tangent\]).  
+     3. Loopar igenom dessa primitiver, orienterar dem korrekt i 3D-rymden baserat på pennans nuvarande tillstånd, tilldelar varje ett unikt primitive\_id, och lägger till dem i DrawingPlan.  
+     4. Uppdaterar pennans position och riktning för varje ritad primitiv.  
+   * **Resultat av Pass 1:** DrawingPlan innehåller nu all komponentgeometri, korrekt placerad i 3D-rymden, men med luckor emellan.  
+3. **Pass 2: Anslut Komponenter:** Modulen itererar igenom resplanen en andra gång och hanterar **endast** EDGE-stegen.  
+   * För varje EDGE-steg:  
+     1. **Mät & Diagnos:** Modulen identifierar de två komponent-grupperna (från Pass 1\) som kanten ska ansluta. Den mäter det exakta avståndet mellan deras respektive anslutningspunkter.  
+     2. **Om avståndet är negativt (överlapp):** Anropar Adjuster med de relevanta group\_id:n och underskottet. Adjuster returnerar en "operationsrapport" med vilka primitive\_id:n som ska kapas. CenterlineBuilder uppdaterar sin Build Plan med dessa nya längder.  
+     3. **Skapa Anslutning:** Skapar en LINE-primitiv för det raka röret (med korrekt längd, kan vara 0), ger det ett primitive\_id och ett group\_id, och lägger till det i DrawingPlan.  
+4. **Slutförande:** När båda passen är klara, returneras det kompletta och sammanhängande DrawingPlan-objektet.
+
+### **5\. Kodskelett (centerline\_builder.py)**
 
 \# backendv2/pipeline/centerline\_builder.py
 
+class DrawingPlan:  
+    def \_\_init\_\_(self):  
+        self.build\_plan \= \[\]      \# List\[Dict\]  
+        self.assembly\_map \= {}    \# Dict\[str, Dict\]
+
 class CenterlineBuilder:  
     """  
-    Bygger en komplett, detaljerad centrumlinje genom att följa en resplan  
+    Bygger en komplett DrawingPlan genom att följa en resplan  
     och använda ComponentFactory.  
     """  
     def \_\_init\_\_(self, plan, nodes, topology, factory, adjuster):  
@@ -452,37 +487,41 @@ class CenterlineBuilder:
         self.topology \= topology  
         self.factory \= factory  
         self.adjuster \= adjuster  
-        self.pen\_position \= ... \# Vec3  
-        self.pen\_direction \= ... \# Vec3
+        \# ... pen\_position, etc.
 
-    def build\_centerline(self) \-\> List\[Dict\[str, Any\]\]:  
+    def build\_drawing\_plan(self) \-\> 'DrawingPlan':  
         """  
-        Huvudmetod som exekverar byggprocessen.  
+        Huvudmetod som exekverar byggprocessen i två pass.  
         """  
-        print(f"--- Modul 5 (CenterlineBuilder): Startar bygge av centrumlinje \---")  
-        final\_primitives \= \[\]  
+        print(f"--- Modul 5 (CenterlineBuilder): Startar bygge av DrawingPlan \---")  
+        drawing\_plan \= DrawingPlan()  
           
+        \# Pass 1: Placera ut all komponentgeometri  
+        self.\_place\_components(drawing\_plan)  
+          
+        \# Pass 2: Anslut komponenterna med raka rör  
+        self.\_connect\_components(drawing\_plan)  
+              
+        return drawing\_plan
+
+    def \_place\_components(self, drawing\_plan: 'DrawingPlan'):  
+        """Loopar igenom NODE-stegen och placerar deras geometri."""  
         for step in self.plan:  
             if step\['type'\] \== 'NODE':  
-                node \= self.nodes\_by\_id\[step\['id'\]\]  
-                component\_primitives \= self.factory.create\_component\_geometry(node)  
-                \# TODO: Loopa igenom och "rita" varje primitiv, uppdatera pennan  
-                final\_primitives.extend(component\_primitives)  
-              
-            elif step\['type'\] \== 'EDGE':  
-                \# TODO: Implementera två-pass-metoden (Mät & Diagnos)  
-                \# 1\. Mät avstånd mellan noderna för denna kant.  
-                \# 2\. Hämta tangentkrav från föregående och nästa komponent.  
-                \# 3\. Beräkna längden på det raka röret.  
-                \# 4\. Om negativt, anropa self.adjuster.  
-                \# 5\. "Rita" det raka röret.  
-                pass  
-          
-        return final\_primitives
+                \# TODO: Implementera logik för Pass 1  
+                pass
+
+    def \_connect\_components(self, drawing\_plan: 'DrawingPlan'):  
+        """Loopar igenom EDGE-stegen och skapar anslutande rör."""  
+        for step in self.plan:  
+            if step\['type'\] \== 'EDGE':  
+                \# TODO: Implementera logik för Pass 2  
+                pass
 
 ### **6\. Sammanfattning och Gränssnitt mot Nästa Modul**
 
-CenterlineBuilder är den primära "intelligenta" byggaren. Den orkestrerar processen, konsulterar experter (ComponentFactory, Adjuster) och producerar den slutgiltiga, perfekta bygghandlingen. Nästa modul, Adjuster, kommer bara att anropas av denna modul vid behov, och GeometryExecutor kommer att ta emot dess slutgiltiga output.
+CenterlineBuilder är den primära "intelligenta" byggaren. Genom att använda en robust två-pass-metod producerar den en rik och detaljerad DrawingPlan som elegant separerar den "dumma" exekveringslistan från den "smarta" komponentkartan. Detta ger GeometryExecutor (Modul 7\) en extremt enkel uppgift, samtidigt som det möjliggör avancerade funktioner och full spårbarhet i senare led.
+
 
 ## **Modul 6: Kvalitetskontrollanten (**Adjuster**)**
 

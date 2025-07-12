@@ -1,6 +1,7 @@
 # pipeline/2_topology_builder/builder.py
 
 import math
+from decimal import Decimal # <-- LÄGG TILL DENNA RAD
 from typing import Dict, Any, List, Tuple
 import networkx as nx
 
@@ -46,7 +47,10 @@ class TopologyBuilder:
         self.catalog = catalog
         self.topology = nx.Graph()
         self.nodes: List[NodeInfo] = []
-        self.coord_to_node_id: Dict[Tuple[float, float, float], str] = {}
+        # Denna är för testet
+        self.coord_map_2d_to_node_id: Dict[Tuple[Decimal, Decimal], str] = {}
+        # Denna används för att bygga 3D-geometrin
+        self.point_2d_to_3d: Dict[Tuple[Decimal, Decimal], Vec3] = {}
 
 
     def build(self) -> Tuple[List[NodeInfo], nx.Graph]:
@@ -59,11 +63,16 @@ class TopologyBuilder:
         self._build_graph(three_d_segments)
         print(f"  -> Steg 2: Graf skapad med {self.topology.number_of_nodes()} noder och {self.topology.number_of_edges()} kanter.")
 
+        # LÄGG TILL DETTA ANROP INNAN _enrich_nodes
+        self._cleanup_graph()
+
         self._enrich_nodes()
         print(f"  -> Steg 3 & 4: Noder klassificerade och berikade.")
         
         print("--- Topology Builder: Klar ---")
         return self.nodes, self.topology
+
+
 
     def _get_3d_direction_from_angle(self, angle_deg: float) -> Vec3:
         """
@@ -89,71 +98,138 @@ class TopologyBuilder:
             print(f"    -> INFO: Vinkel {angle_deg:.1f}° tolkad som närmsta standardvinkel {closest_angle}°.")
         return snapped_direction
 
-    def _translate_2d_to_3d(self) -> List[Dict[str, Any]]:
+    def _create_preliminary_2d_graph(self, segments: List[Dict[str, Any]]) -> nx.Graph:
         """
-        Använder "3D-penna"-logiken för att omvandla 2D-skissen till en lista
-        av 3D-segment.
+        Skapar en enkel graf baserad på 2D-koordinater för att förstå
+        topologin innan 3D-översättning. Noderna är 2D-koordinat-nycklar.
         """
-        three_d_segments = []
-        current_3d_point = Vec3(0.0, 0.0, 0.0)
-        point_map: Dict[Tuple[float, float], Vec3] = {}
-
-        for segment in self.parsed_sketch.get("segments", []):
+        g = nx.Graph()
+        for segment in segments:
             start_2d = segment["start_point"]
             end_2d = segment["end_point"]
-            length = segment.get("length_dimension")
 
-            if start_2d not in point_map:
-                point_map[start_2d] = current_3d_point
+            start_x = start_2d['x'] if isinstance(start_2d, dict) else start_2d[0]
+            start_y = start_2d['y'] if isinstance(start_2d, dict) else start_2d[1]
+            end_x = end_2d['x'] if isinstance(end_2d, dict) else end_2d[0]
+            end_y = end_2d['y'] if isinstance(end_2d, dict) else end_2d[1]
+
+            start_key = (Decimal(str(start_x)), Decimal(str(start_y)))
+            end_key = (Decimal(str(end_x)), Decimal(str(end_y)))
+
+            g.add_edge(start_key, end_key, data=segment)
+        return g
+   
+    def _translate_2d_to_3d(self) -> List[Dict[str, Any]]:
+        """
+        Översätter 2D-skissen till 3D-segment genom att traversera en 2D-graf,
+        vilket gör processen oberoende av rit-ordningen.
+        """
+        all_segments = self.parsed_sketch.get("segments", [])
+        dimensioned_segments = [s for s in all_segments if s.get("length_dimension") is not None]
+        shortcut_segments = [s for s in all_segments if s.get("length_dimension") is None]
+
+        # --- STEG 1: Förstå den sanna topologin ---
+        preliminary_graph = self._create_preliminary_2d_graph(dimensioned_segments)
+        if not preliminary_graph.nodes:
+            return []
+
+        # --- STEG 2: Traversera grafen för att bygga 3D-koordinater ---
+        three_d_segments = []
+        # Hitta en startpunkt (helst en ändpunkt med grad 1)
+        start_node_2d = next((n for n, d in preliminary_graph.degree() if d == 1), list(preliminary_graph.nodes)[0])
+        
+        # Använd en kö för Breadth-First Search (BFS) traversering
+        queue = [(start_node_2d, None)] # (nod, förälder)
+        visited = {start_node_2d}
+        self.point_2d_to_3d[start_node_2d] = Vec3(0.0, 0.0, 0.0)
+
+        while queue:
+            current_node_2d, parent_node_2d = queue.pop(0)
             
-            start_3d = point_map[start_2d]
-            
-            if length is None:
-                print(f"    -> VARNING: Segment {segment['id']} saknar längd-dimension. Hoppar över.")
-                continue
+            for neighbor_node_2d in preliminary_graph.neighbors(current_node_2d):
+                if neighbor_node_2d not in visited:
+                    visited.add(neighbor_node_2d)
+                    
+                    # Hämta segmentdata från kanten
+                    segment_data = preliminary_graph.get_edge_data(current_node_2d, neighbor_node_2d)['data']
+                    length = segment_data["length_dimension"]
+                    
+                    # Bestäm riktning baserat på vilken väg vi traverserar
+                    start_x = current_node_2d[0]
+                    start_y = current_node_2d[1]
+                    end_x = neighbor_node_2d[0]
+                    end_y = neighbor_node_2d[1]
 
-            dx = end_2d[0] - start_2d[0]
-            dy = end_2d[1] - start_2d[1]
-            angle_rad = math.atan2(dy, dx)
-            angle_deg = math.degrees(angle_rad)
-            direction = self._get_3d_direction_from_angle(angle_deg)
+                    dx = float(end_x - start_x)
+                    dy = float(end_y - start_y)
+                    angle_rad = math.atan2(dy, dx)
+                    angle_deg = math.degrees(angle_rad)
+                    direction = self._get_3d_direction_from_angle(angle_deg)
+                    
+                    # Beräkna 3D-position baserat på föräldern
+                    start_3d = self.point_2d_to_3d[current_node_2d]
+                    end_3d = start_3d + (direction * length)
+                    self.point_2d_to_3d[neighbor_node_2d] = end_3d
 
-            end_3d = start_3d + (direction * length)
+                    three_d_segments.append({
+                        **segment_data,
+                        "start_point_3d": (round(start_3d.x, 6), round(start_3d.y, 6), round(start_3d.z, 6)),
+                        "end_point_3d": (round(end_3d.x, 6), round(end_3d.y, 6), round(end_3d.z, 6))
+                    })
+                    
+                    queue.append((neighbor_node_2d, current_node_2d))
 
-            point_map[end_2d] = end_3d
-            current_3d_point = end_3d
+        # --- STEG 3: Hantera genvägar (som tidigare) ---
+        for segment in shortcut_segments:
+            # (Denna logik är oförändrad och bör fungera nu)
+            start_2d = segment["start_point"]
+            end_2d = segment["end_point"]
+            start_x = start_2d['x'] if isinstance(start_2d, dict) else start_2d[0]
+            start_y = start_2d['y'] if isinstance(start_2d, dict) else start_2d[1]
+            end_x = end_2d['x'] if isinstance(end_2d, dict) else end_2d[0]
+            end_y = end_2d['y'] if isinstance(end_2d, dict) else end_2d[1]
+            start_key = (Decimal(str(start_x)), Decimal(str(start_y)))
+            end_key = (Decimal(str(end_x)), Decimal(str(end_y)))
 
-            three_d_segments.append({
-                **segment,
-                "start_point_3d": (round(start_3d.x, 6), round(start_3d.y, 6), round(start_3d.z, 6)),
-                "end_point_3d": (round(end_3d.x, 6), round(end_3d.y, 6), round(end_3d.z, 6))
-            })
+            if start_key in self.point_2d_to_3d and end_key in self.point_2d_to_3d:
+                start_3d = self.point_2d_to_3d[start_key]
+                end_3d = self.point_2d_to_3d[end_key]
+                three_d_segments.append({
+                    **segment,
+                    "start_point_3d": (round(start_3d.x, 6), round(start_3d.y, 6), round(start_3d.z, 6)),
+                    "end_point_3d": (round(end_3d.x, 6), round(end_3d.y, 6), round(end_3d.z, 6))
+                })
+
         return three_d_segments
 
     def _build_graph(self, three_d_segments: List[Dict[str, Any]]):
         """
         Bygger en networkx-graf från listan av 3D-segment.
         """
+        # Vi behöver en mappning från 3D-koordinat -> nod-ID
+        coord_3d_to_node_id: Dict[Tuple[float, float, float], str] = {}
+
         for segment in three_d_segments:
             start_coord = segment["start_point_3d"]
             end_coord = segment["end_point_3d"]
 
             for coord in [start_coord, end_coord]:
-                if coord not in self.coord_to_node_id:
+                if coord not in coord_3d_to_node_id:
                     node = NodeInfo(coords=coord)
-                    self.coord_to_node_id[coord] = node.id
+                    coord_3d_to_node_id[coord] = node.id
                     self.topology.add_node(node.id, data=node)
 
-            start_node_id = self.coord_to_node_id[start_coord]
-            end_node_id = self.coord_to_node_id[end_coord]
+            start_node_id = coord_3d_to_node_id[start_coord]
+            end_node_id = coord_3d_to_node_id[end_coord]
             
             cleaned_spec_name = segment["spec_name"].strip().replace('-', '_')
             self.topology.add_edge(
                 start_node_id, end_node_id,
                 segment_id=segment["id"],
                 spec_name=cleaned_spec_name,
-                is_construction=segment["is_construction"]
+                is_construction=segment.get("is_construction", False) # Använd .get() för säkerhet
             )
+
 
     def _enrich_nodes(self):
         """
@@ -226,3 +302,20 @@ class TopologyBuilder:
                 self.topology.nodes[node_id]['data'] = new_node
 
         self.nodes = list(enriched_nodes_map.values())
+
+    def _cleanup_graph(self):
+        """Tar bort konstruktionslinjer och isolerade noder från grafen."""
+        # Hitta och ta bort konstruktionskanter
+        construction_edges = [
+            (u, v) for u, v, data in self.topology.edges(data=True)
+            if data.get("is_construction")
+        ]
+        self.topology.remove_edges_from(construction_edges)
+        print(f"  -> Rensning: {len(construction_edges)} konstruktionskanter borttagna.")
+
+        # Hitta och ta bort isolerade noder (noder utan kanter)
+        isolated_nodes = [
+            node_id for node_id, degree in self.topology.degree() if degree == 0
+        ]
+        self.topology.remove_nodes_from(isolated_nodes)
+        print(f"  -> Rensning: {len(isolated_nodes)} isolerade noder borttagna.")
