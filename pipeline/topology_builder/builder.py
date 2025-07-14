@@ -25,6 +25,10 @@ class Vec3:
     def __mul__(self, scalar):
         return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
 
+    def __neg__(self):
+        """Returnerar en inverterad version av vektorn."""
+        return Vec3(-self.x, -self.y, -self.z)
+
     def get_length(self):
         return math.sqrt(self.x**2 + self.y**2 + self.z**2)
 

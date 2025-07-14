@@ -17,6 +17,7 @@ modules_to_reload = [
     "pipeline.shared.types",
     "pipeline.sketch_parser.parser",
     "pipeline.topology_builder.node_types_v2",
+    "pipeline.planner.planner",
     "pipeline.topology_builder.builder",
     "pipeline.centerline_builder.builder",
     "pipeline.plan_adjuster.adjuster",
@@ -55,17 +56,18 @@ except ImportError:
 from components_catalog.loader import CatalogLoader
 from pipeline.sketch_parser.parser import SketchParser
 from pipeline.topology_builder.builder import TopologyBuilder
+from pipeline.planner.planner import Planner
 from pipeline.centerline_builder.builder import CenterlineBuilder
 from pipeline.plan_adjuster.adjuster import PlanAdjuster, ImpossibleBuildError
 from pipeline.geometry_executor.executor import GeometryExecutor
+
+
 
 
 def process_sketch_to_shape(proto_data: bytes) -> 'Part.Shape':
     """
     Huvudfunktion som kör hela pipeline, från rådata till färdig 3D-modell.
     """
-    # ... (kod för att ladda katalog, parser, builder är oförändrad) ...
-    
     try:
         # --- Steg 0, 1, 2 (oförändrade) ---
         project_root = os.path.dirname(os.path.abspath(__file__))
@@ -78,23 +80,41 @@ def process_sketch_to_shape(proto_data: bytes) -> 'Part.Shape':
         builder = TopologyBuilder(parsed_sketch, catalog)
         nodes, graph = builder.build()
 
-        # --- Steg 3: Skapa byggplaner ---
-        planner = CenterlineBuilder(nodes, graph, catalog)
-        semantic_plans = planner.create_plans()
+        # === NY, KORREKT KEDJA ===
 
-        # --- Steg 4: Justera planer (Skapar nu explicita geometriska ritningar) ---
-        adjuster = PlanAdjuster(semantic_plans, nodes, graph, catalog)
-        # ANROPA DEN NYA KORREKTA METODEN
-        explicit_plans = adjuster.create_explicit_plans() 
+        # STEG 3: Skapa logiska resplaner
+        planner = Planner(nodes=nodes, topology=graph, catalog=catalog)
+        travel_plans = planner.create_plans()
 
-        # --- Steg 5: Exekvera och bygg 3D-modell ---
+        # STEG 4: Skapa instans av Adjuster (för dependency injection)
+        # Den skapas här men kommer bara att användas inuti CenterlineBuilder vid behov.
+        adjuster = PlanAdjuster(
+            semantic_plans=travel_plans, 
+            nodes=nodes, 
+            topology=graph, 
+            catalog=catalog
+        )
+        # STEG 5: Bygg den detaljerade geometriska planen
+        centerline_builder = CenterlineBuilder(
+            travel_plans=travel_plans,
+            nodes=nodes,
+            topology=graph,  # Lägg till topologin
+            catalog=catalog, # Lägg till katalogen
+            adjuster=adjuster  # Lägg till adjustern
+        )
+
+        final_drawing_plans = centerline_builder.build_drawing_plans()
+
+        # STEG 7: Exekvera och rita modellen (Återställd till den gamla, fungerande logiken)
         all_wires = []
-        for plan in explicit_plans:
-            if not plan: # Hoppa över tomma planer
+        # Loopa igenom varje plan som vår nya kedja har producerat
+        for plan in final_drawing_plans:
+            if not plan:
                 continue
-            
+
+            # Skapa en Executor för varje enskild plan, precis som förut
             executor = GeometryExecutor(
-                explicit_plan=plan, # Skicka en enskild plan
+                explicit_plan=plan, # Använd det korrekta argumentnamnet
                 freecad_part_module=Part,
                 freecad_vector_class=Vector
             )
@@ -103,19 +123,13 @@ def process_sketch_to_shape(proto_data: bytes) -> 'Part.Shape':
                 all_wires.append(wire)
 
         # Foga samman alla trådar till ett enda objekt för visualisering
-        final_shape = Part.Compound(all_wires) if all_wires else None
-        
+        final_model = Part.Compound(all_wires) if all_wires else None
+
         print("===================================")
         print("=== Pipeline slutförd framgångsrikt ===")
         print("===================================")
         
-        return final_shape
-        
-        print("===================================")
-        print("=== Pipeline slutförd framgångsrikt ===")
-        print("===================================")
-        
-        return final_shape
+        return final_model
 
     except ImpossibleBuildError as e:
         print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -125,7 +139,6 @@ def process_sketch_to_shape(proto_data: bytes) -> 'Part.Shape':
         return None
     except Exception as e:
         print(f"\nEtt oväntat fel inträffade i pipelinen: {e}")
-        # Importera traceback för att kunna skriva ut mer detaljerade fel
         import traceback
         traceback.print_exc()
         return None

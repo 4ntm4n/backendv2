@@ -56,4 +56,4 @@ class GeometryExecutor:
             print("VARNING: Inga kanter skapades för centrumlinjen.")
             return self.Part.Shape()
             
-        return self.Part.Wire(edges)
+        return self.Part.Compound(edges)
