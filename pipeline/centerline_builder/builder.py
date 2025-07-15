@@ -26,12 +26,14 @@ class CenterlineBuilder:
     (FÖR TILLFÄLLET: Implementerar en enkel översättning för att skapa en
     trådmodell för visualisering, precis som den gamla PlanAdjuster gjorde.)
     """
-    def __init__(self, travel_plans: List[List[BuildPlanItem]], nodes: List[NodeInfo], topology: Any, catalog: Any, adjuster: Any):
+    def __init__(self, travel_plans: List[List[BuildPlanItem]], nodes: List[NodeInfo], topology: Any, catalog: Any, adjuster: Any, factory: Any):
         self.travel_plans = travel_plans
         self.nodes_by_id = {node.id: node for node in nodes}
         self.topology = topology
         self.catalog = catalog
         self.adjuster = adjuster
+
+        self.factory = factory
 
         # "3D-pennans" tillstånd
         self.pen_position: Vec3 = None
@@ -80,15 +82,20 @@ class CenterlineBuilder:
                 node = self.nodes_by_id[item['id']]
 
                 if isinstance(node, BendNodeInfo):
-                    # Vi har hittat en böj, anropa hjälpmetoden för att rita den
                     # Vi använder nodens koordinater som hörn-position
                     corner_pos = Vec3(*node.coords)
-                    new_pos, new_dir = self._create_arc_for_bend(node, corner_pos, self.pen_direction, drawing_plan)
 
-                    # Uppdatera pennans position och riktning
+                    # Anropa fabriken för att få ett recept och pennans nya tillstånd
+                    component_recipe, new_pos, new_dir = self.factory.create_bend_recipe(node, corner_pos, self.pen_direction)
+
+                    # Lägg till alla delar från receptet till den slutgiltiga byggplanen.
+                    if component_recipe:
+                        drawing_plan.build_plan.extend(component_recipe)
+
+                    # Uppdatera pennans position och riktning för nästa iteration
                     self.pen_position = new_pos
                     self.pen_direction = new_dir
-
+                    
     def _connect_components(self, conceptual_plan: list, drawing_plan: DrawingPlan):
         """Pass 2: Ansluter komponenterna. IMPLEMENTERAS SENARE."""
         print("   -> Pass 2: Ansluter komponenter (hoppar över för nu).")

@@ -22,7 +22,9 @@ modules_to_reload = [
     "pipeline.centerline_builder.builder",
     "pipeline.plan_adjuster.adjuster",
     "pipeline.geometry_executor.executor",
-    "components_catalog.loader"
+    "components_catalog.loader",
+    
+    "pipeline.component_factory.factory"
 ]
 
 print("--- Hot-reloader: Laddar om projekt-moduler... ---")
@@ -61,6 +63,8 @@ from pipeline.centerline_builder.builder import CenterlineBuilder
 from pipeline.plan_adjuster.adjuster import PlanAdjuster, ImpossibleBuildError
 from pipeline.geometry_executor.executor import GeometryExecutor
 
+from pipeline.component_factory.factory import ComponentFactory
+
 
 
 
@@ -88,6 +92,8 @@ def process_sketch_to_shape(proto_data: bytes) -> 'Part.Shape':
 
         # STEG 4: Skapa instans av Adjuster (för dependency injection)
         # Den skapas här men kommer bara att användas inuti CenterlineBuilder vid behov.
+        factory = ComponentFactory(catalog=catalog)
+
         adjuster = PlanAdjuster(
             semantic_plans=travel_plans, 
             nodes=nodes, 
@@ -98,9 +104,10 @@ def process_sketch_to_shape(proto_data: bytes) -> 'Part.Shape':
         centerline_builder = CenterlineBuilder(
             travel_plans=travel_plans,
             nodes=nodes,
-            topology=graph,  # Lägg till topologin
-            catalog=catalog, # Lägg till katalogen
-            adjuster=adjuster  # Lägg till adjustern
+            topology=graph,  
+            catalog=catalog,
+            factory=factory,
+            adjuster=adjuster
         )
 
         final_drawing_plans = centerline_builder.build_drawing_plans()
