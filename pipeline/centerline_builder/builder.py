@@ -63,7 +63,8 @@ class CenterlineBuilder:
     def _place_components(self, conceptual_plan: list, drawing_plan: DrawingPlan):
         """Pass 1: Loopar igenom resplanen och placerar komponenternas geometri."""
         print("   -> Pass 1: Placerar komponenter...")
-        # Hitta startnod och initiera pennan
+        
+        # Steg 1: Initiera "3D-pennan" vid startpunkten. Denna del är kritisk.
         start_node_id = conceptual_plan[0]['id']
         start_node = self.nodes_by_id[start_node_id]
 
@@ -71,28 +72,67 @@ class CenterlineBuilder:
         if isinstance(start_node, EndpointNodeInfo):
             self.pen_direction = Vec3(*start_node.direction)
         else:
-            # Om startpunkten inte är en ändpunkt, beräkna startriktning
+            # Om startpunkten inte är en ändpunkt, beräkna startriktning från nästa nod.
             next_node_id = conceptual_plan[2]['id']
             next_node = self.nodes_by_id[next_node_id]
             self.pen_direction = (Vec3(*next_node.coords) - Vec3(*start_node.coords)).normalize()
 
-        # Loopa igenom planen för att hitta och bygga böjar
-        for item in conceptual_plan:
+        # Steg 2: Loopa igenom planen och bygg komponenter.
+        # Vi använder enumerate för att få tillgång till index (i), vilket behövs för custom-böjar.
+        for i, item in enumerate(conceptual_plan):
             if item['type'] == 'NODE':
                 node = self.nodes_by_id[item['id']]
 
                 if isinstance(node, BendNodeInfo):
-                    # Vi använder nodens koordinater som hörn-position
                     corner_pos = Vec3(*node.coords)
 
-                    # Anropa fabriken för att få ett recept och pennans nya tillstånd
-                    component_recipe, new_pos, new_dir = self.factory.create_bend_recipe(node, corner_pos, self.pen_direction)
+                    # Förbered argument för fabriken. Default är en tom dictionary.
+                    kwargs_for_factory = {}
+                    
+                    # Om det är en "custom bend", fatta ett beslut och lägg till extra instruktioner.
+                    if not math.isclose(node.angle, 90.0) and not math.isclose(node.angle, 45.0):
+                        print(f"      -> Custom bend ({node.angle:.1f}°). Jämför avstånd till grann-noder:")
+
+                        # --- START PÅ NY, SÄKRARE LOGIK ---
+                        
+                        # Hämta inkommande längd
+                        incoming_length = conceptual_plan[i-1].get('length') if i > 0 else None
+                        if incoming_length is not None:
+                            print(f"         - Avstånd IN (från föregående nod): {incoming_length:.2f} mm")
+                        else:
+                            print(f"         - Avstånd IN (från föregående nod): Okänd (None)")
+
+                        # Hämta utgående längd
+                        outgoing_length = conceptual_plan[i+1].get('length') if i < len(conceptual_plan) - 1 else None
+                        if outgoing_length is not None:
+                            print(f"         - Avstånd UT (till nästa nod):    {outgoing_length:.2f} mm")
+                        else:
+                            print(f"         - Avstånd UT (till nästa nod):    Okänd (None)")
+
+                        # Jämför längderna på ett säkert sätt
+                        # Om en längd är okänd (None), behandla den som oändligt lång.
+                        compare_in = incoming_length if incoming_length is not None else float('inf')
+                        compare_out = outgoing_length if outgoing_length is not None else float('inf')
+
+                        if compare_in < compare_out:
+                            kwargs_for_factory['tangent_placement'] = 'INCOMING'
+                            print(f"         -> BESLUT: Kortast avstånd IN. Tangent placeras på IN-sidan.")
+                        else:
+                            kwargs_for_factory['tangent_placement'] = 'OUTGOING'
+                            print(f"         -> BESLUT: Kortast avstånd UT (eller lika/okänt). Tangent placeras på UT-sidan.")
+                        
+                        # --- SLUT PÅ NY, SÄKRARE LOGIK ---
+
+                    component_recipe, new_pos, new_dir = self.factory.create_bend_recipe(
+                        node, corner_pos, self.pen_direction, **kwargs_for_factory
+                    )
+
 
                     # Lägg till alla delar från receptet till den slutgiltiga byggplanen.
                     if component_recipe:
                         drawing_plan.build_plan.extend(component_recipe)
 
-                    # Uppdatera pennans position och riktning för nästa iteration
+                    # Uppdatera pennans position och riktning för nästa iteration.
                     self.pen_position = new_pos
                     self.pen_direction = new_dir
                     

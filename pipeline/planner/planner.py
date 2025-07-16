@@ -94,8 +94,18 @@ class Planner:
                 edge_tuple = tuple(sorted((current_node.id, next_node_id)))
                 self.visited_edges.add(edge_tuple)
 
-                # Lägg bara till kantens ID (tuple)
-                plan.append({'type': 'EDGE', 'id': edge_tuple})
+                # --- START PÅ ÄNDRING ---
+                # Hämta kantens data (inklusive längd) från topologi-grafen.
+                edge_data = self.topology.edges[edge_tuple]
+                edge_length = edge_data.get('length') # Använd .get() för säkerhets skull
+
+                # Skapa ett berikat kant-objekt som inkluderar längden.
+                plan.append({
+                    'type': 'EDGE',
+                    'id': edge_tuple,
+                    'length': edge_length
+                })
+                # --- SLUT PÅ ÄNDRING ---
 
                 previous_node_id = current_node.id
                 current_node = self.nodes_by_id.get(next_node_id)

@@ -198,8 +198,18 @@ class TopologyBuilder:
             if start_key in self.point_2d_to_3d and end_key in self.point_2d_to_3d:
                 start_3d = self.point_2d_to_3d[start_key]
                 end_3d = self.point_2d_to_3d[end_key]
+
+                # --- START PÅ NY LOGIK ---
+                # Beräkna den faktiska geometriska längden på genvägen.
+                actual_length = (end_3d - start_3d).get_length()
+                
+                # Skapa en kopia av segmentdatan för att säkert kunna uppdatera den.
+                updated_segment_data = segment.copy()
+                updated_segment_data['length_dimension'] = actual_length
+                # --- SLUT PÅ NY LOGIK ---
+
                 three_d_segments.append({
-                    **segment,
+                    **updated_segment_data, # Använd den uppdaterade datan
                     "start_point_3d": (round(start_3d.x, 6), round(start_3d.y, 6), round(start_3d.z, 6)),
                     "end_point_3d": (round(end_3d.x, 6), round(end_3d.y, 6), round(end_3d.z, 6))
                 })
@@ -231,7 +241,8 @@ class TopologyBuilder:
                 start_node_id, end_node_id,
                 segment_id=segment["id"],
                 spec_name=cleaned_spec_name,
-                is_construction=segment.get("is_construction", False) # Använd .get() för säkerhet
+                is_construction=segment.get("is_construction", False),  # Använd .get() för säkerhet
+                length=segment.get("length_dimension") 
             )
 
 

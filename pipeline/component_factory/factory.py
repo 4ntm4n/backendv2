@@ -185,55 +185,52 @@ class Bend45(BaseBend):
 class CustomBend(BaseBend):
     """
     Expert-klass för specialkapade böjar.
-    Simulerar en kapad 90-gradersböj med en fast tangentlängd.
-    Receptet är [ARC, TANGENT] med en fast, förbestämd orientering.
+    Kan nu placera den enskilda tangenten på antingen den inkommande
+    eller utgående sidan av bågen.
     """
-    def __init__(self, node: BendNodeInfo, corner_pos: Vec3, incoming_dir: Vec3, radius: float, center_to_end_90: float):
+    def __init__(self, node: BendNodeInfo, corner_pos: Vec3, incoming_dir: Vec3, radius: float, center_to_end_90: float, tangent_placement: str):
         super().__init__(node, corner_pos, incoming_dir, radius)
-        # Tar emot CTE-måttet från en standard 90-gradersböj för att beräkna tangentlängd.
         self.center_to_end_90 = center_to_end_90
+        # Nytt argument som styr var tangenten placeras
+        self.tangent_placement = tangent_placement 
 
     def create_recipe(self) -> Tuple[List[Dict[str, Any]], Vec3, Vec3]:
-        """ Bygger receptet för en specialkapad böj. """
-        # Steg 1: Beräkna bågen baserat på nodens exakta vinkel.
+        """ Bygger receptet baserat på den beställda tangentplaceringen. """
         arc_start, arc_mid, arc_end, outgoing_dir, _ = self._calculate_arc_geometry()
 
-        # Steg 2: Beräkna den fasta tangentlängden baserat på en 90-gradersböj.
         tangent_length = self.center_to_end_90 - self.radius
         if tangent_length < 0:
             tangent_length = 0
 
-        # Steg 3: Bygg receptet med den fasta orienteringen [ARC, TANGENT].
         component_id = f"bend_{uuid.uuid4().hex[:8]}"
-        tangent_end = arc_end + (outgoing_dir * tangent_length)
-
         recipe = []
         
-        # Bågen först
-        recipe.append({
-            'id': f"arc_{uuid.uuid4().hex[:8]}",
-            'component_id': component_id,
-            'component_type': 'BEND_CUSTOM',
-            'type': 'ARC', 
-            'start': tuple(vars(arc_start).values()), 
-            'mid': tuple(vars(arc_mid).values()), 
-            'end': tuple(vars(arc_end).values())
-        })
+        # Bygg receptet baserat på beställningen från CenterlineBuilder
+        if self.tangent_placement == 'INCOMING':
+            # Bygg [TANGENT, ARC]
+            tangent_start = arc_start - (self.incoming_dir * tangent_length)
+            
+            if tangent_length > 1e-6:
+                recipe.append({ 'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': 'BEND_CUSTOM', 'type': 'LINE', 'start': tuple(vars(tangent_start).values()), 'end': tuple(vars(arc_start).values()) })
+            
+            recipe.append({ 'id': f"arc_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': 'BEND_CUSTOM', 'type': 'ARC', 'start': tuple(vars(arc_start).values()), 'mid': tuple(vars(arc_mid).values()), 'end': tuple(vars(arc_end).values()) })
+            
+            # Pennans nya position är i slutet av bågen
+            new_pen_position = arc_end
         
-        # Sedan den enda tangenten
-        if tangent_length > 1e-6:
-            recipe.append({
-                'id': f"line_{uuid.uuid4().hex[:8]}",
-                'component_id': component_id,
-                'component_type': 'BEND_CUSTOM',
-                'type': 'LINE', 
-                'start': tuple(vars(arc_end).values()), 
-                'end': tuple(vars(tangent_end).values())
-            })
+        else: # Default är 'OUTGOING'
+            # Bygg [ARC, TANGENT]
+            tangent_end = arc_end + (outgoing_dir * tangent_length)
 
-        # Steg 4: Pennans nya position är i slutet på tangenten.
-        return recipe, tangent_end, outgoing_dir
+            recipe.append({ 'id': f"arc_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': 'BEND_CUSTOM', 'type': 'ARC', 'start': tuple(vars(arc_start).values()), 'mid': tuple(vars(arc_mid).values()), 'end': tuple(vars(arc_end).values()) })
+            
+            if tangent_length > 1e-6:
+                recipe.append({ 'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': 'BEND_CUSTOM', 'type': 'LINE', 'start': tuple(vars(arc_end).values()), 'end': tuple(vars(tangent_end).values()) })
+            
+            # Pennans nya position är i slutet på tangenten
+            new_pen_position = tangent_end
 
+        return recipe, new_pen_position, outgoing_dir
 
 class ComponentFactory:
     """ Arbetsledaren som delegerar jobbet till rätt expert. """
@@ -241,7 +238,7 @@ class ComponentFactory:
         # Ignorerar katalogen för nu, vi använder MOCK_BEND_CATALOG.
         self.catalog = catalog
 
-    def create_bend_recipe(self, node: BendNodeInfo, corner_pos: Vec3, incoming_dir: Vec3) -> Tuple[List[Dict[str, Any]], Vec3, Vec3]:
+    def create_bend_recipe(self, node: BendNodeInfo, corner_pos: Vec3, incoming_dir: Vec3, tangent_placement: str = 'OUTGOING') -> Tuple[List[Dict[str, Any]], Vec3, Vec3]:
         """
         Dispatcher-metod. Väljer rätt expert (90, 45, eller Custom) baserat på vinkel.
         """
@@ -266,12 +263,13 @@ class ComponentFactory:
                     radius=component_data['radius'], b_measure=component_data['b_measure']
                 )
         else: # "Catch-all" för alla andra vinklar
-            # Hämta data från en standard 90-gradersböj för att kunna beräkna tangentlängden.
             component_data = MOCK_BEND_CATALOG.get("BEND_90_SMS_38")
             if component_data:
                 bend_expert = CustomBend(
                     node=node, corner_pos=corner_pos, incoming_dir=incoming_dir,
-                    radius=component_data['radius'], center_to_end_90=component_data['center_to_end']
+                    radius=component_data['radius'], 
+                    center_to_end_90=component_data['center_to_end'],
+                    tangent_placement=tangent_placement  # Skicka vidare instruktionen
                 )
 
         # Kontrollera och exekvera
