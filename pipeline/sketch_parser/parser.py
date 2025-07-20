@@ -55,7 +55,7 @@ class SketchParser:
                 "start_point": (segment_proto.startPoint.x, segment_proto.startPoint.y),
                 "end_point": (segment_proto.endPoint.x, segment_proto.endPoint.y),
                 # Normalisera spec-namnet för konsekvent användning
-                "spec_name": segment_proto.pipe_spec.strip().replace('-', '_'),
+                "pipe_spec": segment_proto.pipe_spec.strip().replace('-', '_'),
                 # Hantera det optionella längd-fältet
                 "length_dimension": segment_proto.length_dimension if segment_proto.HasField('length_dimension') else None,
                 "is_construction": segment_proto.isConstruction

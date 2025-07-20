@@ -134,7 +134,7 @@ class TopologyBuilder:
                 start_node_id,
                 end_node_id,
                 segment_id=segment["id"],
-                spec_name=segment["spec_name"].strip().replace('-', '_'),
+                pipe_spec=segment["pipe_spec"].strip().replace('-', '_'),
                 is_construction=segment["is_construction"]
             )
 
@@ -210,11 +210,11 @@ class TopologyBuilder:
             
             if new_node:
                 # Sätt primär specifikation och kolla om kona behövs
-                spec_names = {data['spec_name'] for _, _, data in real_edges}
-                if spec_names:
-                    first_edge_spec = list(spec_names)[0]
+                pipe_specs = {data['pipe_spec'] for _, _, data in real_edges}
+                if pipe_specs:
+                    first_edge_spec = list(pipe_specs)[0]
                     new_node.assigned_spec = self.catalog.get_spec(first_edge_spec)
-                if len(spec_names) > 1:
+                if len(pipe_specs) > 1:
                     new_node.requires_reducer = True
 
                 enriched_nodes_map[node_id] = new_node

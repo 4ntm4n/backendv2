@@ -118,7 +118,7 @@ class Planner:
         """Skapar ett BuildPlanItem för ett rakt rör."""
         return {
             'type': 'STRAIGHT',
-            'spec_name': edge_data.get('spec_name'),
+            'pipe_spec': edge_data.get('pipe_spec'),
             'is_construction': edge_data.get('is_construction'),
             'length': None
         }

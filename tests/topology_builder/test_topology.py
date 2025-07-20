@@ -31,11 +31,11 @@ def test_topology_builder_simple_bend_scenario():
         "segments": [
             {
                 "id": "line_1", "start_point": {"x": 0.0, "y": 0.0}, "end_point": {"x": 86.6, "y": 50.0},
-                "length_dimension": 100.0, "spec_name": "SMS_25", "is_construction": False
+                "length_dimension": 100.0, "pipe_spec": "SMS_25", "is_construction": False
             },
             {
                 "id": "line_2", "start_point": {"x": 86.6, "y": 50.0}, "end_point": {"x": 86.6, "y": 150.0},
-                "length_dimension": 100.0, "spec_name": "SMS_25", "is_construction": False
+                "length_dimension": 100.0, "pipe_spec": "SMS_25", "is_construction": False
             }
         ],
     }
@@ -66,9 +66,9 @@ def test_topology_builder_tee_junction_enrichment():
     # ARRANGE
     parsed_sketch_data = {
         "segments": [
-            {"id": "line_1", "start_point": {"x": 0.0, "y": 0.0}, "end_point": {"x": 86.6, "y": 50.0}, "length_dimension": 100.0, "spec_name": "SMS_38", "is_construction": False},
-            {"id": "line_2", "start_point": {"x": 86.6, "y": 50.0}, "end_point": {"x": 173.2, "y": 100.0}, "length_dimension": 100.0, "spec_name": "SMS_38", "is_construction": False},
-            {"id": "line_3", "start_point": {"x": 86.6, "y": 50.0}, "end_point": {"x": 173.2, "y": 0.0}, "length_dimension": 100.0, "spec_name": "SMS_25", "is_construction": False},
+            {"id": "line_1", "start_point": {"x": 0.0, "y": 0.0}, "end_point": {"x": 86.6, "y": 50.0}, "length_dimension": 100.0, "pipe_spec": "SMS_38", "is_construction": False},
+            {"id": "line_2", "start_point": {"x": 86.6, "y": 50.0}, "end_point": {"x": 173.2, "y": 100.0}, "length_dimension": 100.0, "pipe_spec": "SMS_38", "is_construction": False},
+            {"id": "line_3", "start_point": {"x": 86.6, "y": 50.0}, "end_point": {"x": 173.2, "y": 0.0}, "length_dimension": 100.0, "pipe_spec": "SMS_25", "is_construction": False},
         ]
     }
     mock_catalog = MagicMock()
@@ -96,23 +96,23 @@ def shortcut_sketch_data():
         "segments": [
             {
                 "id": "l1", "start_point": {"x": 311.7691, "y": 580.0}, "end_point": {"x": 311.7691, "y": 300.0},
-                "is_construction": False, "length_dimension": 500.0, "spec_name": "SMS-38"
+                "is_construction": False, "length_dimension": 500.0, "pipe_spec": "SMS-38"
             },
             {
                 "id": "l2_construction", "start_point": {"x": 311.7691, "y": 300.0}, "end_point": {"x": 519.6152, "y": 180.0},
-                "is_construction": True, "length_dimension": 400.0, "spec_name": "SMS-38"
+                "is_construction": True, "length_dimension": 400.0, "pipe_spec": "SMS-38"
             },
             {
                 "id": "l3_construction", "start_point": {"x": 519.6152, "y": 180.0}, "end_point": {"x": 692.8203, "y": 280.0},
-                "is_construction": True, "length_dimension": 300.0, "spec_name": "SMS-38"
+                "is_construction": True, "length_dimension": 300.0, "pipe_spec": "SMS-38"
             },
             {
                 "id": "l4", "start_point": {"x": 692.8203, "y": 280.0}, "end_point": {"x": 1004.5895, "y": 100.0},
-                "is_construction": False, "length_dimension": 500.0, "spec_name": "SMS-38"
+                "is_construction": False, "length_dimension": 500.0, "pipe_spec": "SMS-38"
             },
             {
                 "id": "l5_shortcut", "start_point": {"x": 311.7691, "y": 300.0}, "end_point": {"x": 692.8203, "y": 280.0},
-                "is_construction": False, "length_dimension": None, "spec_name": "SMS-38"
+                "is_construction": False, "length_dimension": None, "pipe_spec": "SMS-38"
             }
         ]
     }

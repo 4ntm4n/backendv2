@@ -80,7 +80,7 @@ class PlanAdjuster:
         component_items = [item for item in segment if item['type'] == 'COMPONENT' and item['component_name'] != 'ENDPOINT']
         
         for item in component_items:
-            spec = self.catalog.get_spec(item['spec_name'])
+            spec = self.catalog.get_spec(item['pipe_spec'])
             # Hoppa över om spec eller komponent inte hittas
             if not spec or not spec.components.get(item['component_name']):
                 continue
@@ -170,7 +170,7 @@ class PlanAdjuster:
         component_items = [item for item in segment if item['type'] == 'COMPONENT' and item.get('component_name') != 'ENDPOINT']
         component_build_length = 0.0
         for item in component_items:
-            spec = self.catalog.get_spec(item['spec_name'])
+            spec = self.catalog.get_spec(item['pipe_spec'])
             if not spec: continue
             
             component_obj = spec.components.get(item['component_name'])
@@ -213,7 +213,7 @@ class PlanAdjuster:
 
         cappable_tangents: List[CappableTangent] = []
         for item in component_items:
-            spec = self.catalog.get_spec(item['spec_name'])
+            spec = self.catalog.get_spec(item['pipe_spec'])
             if not spec: continue
             comp_obj = spec.components.get(item['component_name'])
 

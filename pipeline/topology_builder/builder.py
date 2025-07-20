@@ -224,6 +224,11 @@ class TopologyBuilder:
         coord_3d_to_node_id: Dict[Tuple[float, float, float], str] = {}
 
         for segment in three_d_segments:
+            # --- NY DEBUG-LOGG ---
+            #inspektera exakt vad som finns i segment-datan
+            print(f"      -> _build_graph: Bearbetar segment: {segment}")
+            # --- SLUT PÅ DEBUG-LOGG ---
+
             start_coord = segment["start_point_3d"]
             end_coord = segment["end_point_3d"]
 
@@ -236,15 +241,17 @@ class TopologyBuilder:
             start_node_id = coord_3d_to_node_id[start_coord]
             end_node_id = coord_3d_to_node_id[end_coord]
             
-            cleaned_spec_name = segment["spec_name"].strip().replace('-', '_')
+            # Använd rätt nyckel, "pipe_spec", från Protobuf-objektet
+            spec_from_sketch = segment.get("pipe_spec", "") 
+            cleaned_pipe_spec = spec_from_sketch.strip().replace('-', '_')
+
             self.topology.add_edge(
                 start_node_id, end_node_id,
                 segment_id=segment["id"],
-                spec_name=cleaned_spec_name,
-                is_construction=segment.get("is_construction", False),  # Använd .get() för säkerhet
-                length=segment.get("length_dimension") 
+                pipe_spec=cleaned_pipe_spec,
+                is_construction=segment.get("is_construction", False),
+                length=segment.get("length_dimension")
             )
-
 
     def _enrich_nodes(self):
         """
@@ -304,14 +311,14 @@ class TopologyBuilder:
                     new_node.branch_node_id = neighbors[branch_index]
             
             if new_node:
-                spec_names = {data['spec_name'] for _, _, data in self.topology.edges(node_id, data=True)}
-                if len(spec_names) > 1: new_node.requires_reducer = True
+                pipe_specs = {data['pipe_spec'] for _, _, data in self.topology.edges(node_id, data=True)}
+                if len(pipe_specs) > 1: new_node.requires_reducer = True
                 
                 # Tilldela primär specifikation
-                if spec_names:
+                if pipe_specs:
                     # En mer robust metod skulle vara att sortera eller välja baserat på en regel
-                    first_spec_name = list(spec_names)[0]
-                    new_node.assigned_spec = self.catalog.get_spec(first_spec_name)
+                    first_pipe_spec = list(pipe_specs)[0]
+                    new_node.assigned_spec = self.catalog.get_spec(first_pipe_spec)
 
                 enriched_nodes_map[node_id] = new_node
                 self.topology.nodes[node_id]['data'] = new_node

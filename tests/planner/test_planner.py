@@ -32,8 +32,8 @@ def test_planner_simple_linear_plan():
     # 1b: Skapa en "låtsas"-topologi (networkx-graf)
     topology = nx.Graph()
     # Lägg till kanter och berika dem med den data som TopologyBuilder skulle ha gjort
-    topology.add_edge(start_node.id, bend_node.id, spec_name="SMS_25", is_construction=False)
-    topology.add_edge(bend_node.id, end_node.id, spec_name="SMS_25", is_construction=False)
+    topology.add_edge(start_node.id, bend_node.id, pipe_spec="SMS_25", is_construction=False)
+    topology.add_edge(bend_node.id, end_node.id, pipe_spec="SMS_25", is_construction=False)
 
     # 1c: Skapa en mock för vår CatalogLoader
     mock_catalog = MagicMock()
@@ -61,7 +61,7 @@ def test_planner_simple_linear_plan():
 
     # 3c: Kontrollera specifik data
     assert single_plan[0]['node_id'] == start_node.id, "Första komponenten ska vara startnoden"
-    assert single_plan[1]['spec_name'] == "SMS_25", "Första raka röret ska ha rätt specifikation"
+    assert single_plan[1]['pipe_spec'] == "SMS_25", "Första raka röret ska ha rätt specifikation"
     assert single_plan[2]['node_id'] == bend_node.id, "Tredje komponenten ska vara böj-noden"
     assert single_plan[4]['node_id'] == end_node.id, "Sista komponenten ska vara slutnoden"
 

@@ -77,11 +77,11 @@ Denna moduls ansvar förblir oförändrat, men det är viktigt att definiera des
 * **Output (Semantisk Byggplan):** En lista med `BuildPlanItem`-ordlistor som beskriver ordningsföljden.
     ```json
     [
-      {"type": "COMPONENT", "component_name": "ENDPOINT", "node_id": "...", "spec_name": "SMS_25"},
-      {"type": "STRAIGHT", "spec_name": "SMS_25"},
-      {"type": "COMPONENT", "component_name": "BEND_90", "node_id": "...", "spec_name": "SMS_25"},
-      {"type": "STRAIGHT", "spec_name": "SMS_25"},
-      {"type": "COMPONENT", "component_name": "ENDPOINT", "node_id": "...", "spec_name": "SMS_25"}
+      {"type": "COMPONENT", "component_name": "ENDPOINT", "node_id": "...", "pipe_spec": "SMS_25"},
+      {"type": "STRAIGHT", "pipe_spec": "SMS_25"},
+      {"type": "COMPONENT", "component_name": "BEND_90", "node_id": "...", "pipe_spec": "SMS_25"},
+      {"type": "STRAIGHT", "pipe_spec": "SMS_25"},
+      {"type": "COMPONENT", "component_name": "ENDPOINT", "node_id": "...", "pipe_spec": "SMS_25"}
     ]
     ```
 

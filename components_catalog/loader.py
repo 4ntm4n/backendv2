@@ -128,9 +128,9 @@ class CatalogLoader:
                         continue # Gå vidare till nästa fil
 
                     # Om filen laddades korrekt, fortsätt som vanligt
-                    for spec_name_raw, spec_data in data.items():
-                        spec_name_normalized = spec_name_raw.strip().replace('-', '_')
-                        self.standards[spec_name_normalized] = self._parse_spec(spec_name_normalized, spec_data)
+                    for pipe_spec_raw, spec_data in data.items():
+                        pipe_spec_normalized = pipe_spec_raw.strip().replace('-', '_')
+                        self.standards[pipe_spec_normalized] = self._parse_spec(pipe_spec_normalized, spec_data)
         
         self._generate_reducers()
         
@@ -189,9 +189,9 @@ class CatalogLoader:
         print("--- Genererar konor (reducers)... ---")
         standard_names = list(self.standards.keys())
         
-        for spec_name_a, spec_name_b in itertools.combinations(standard_names, 2):
-            spec_a = self.standards[spec_name_a]
-            spec_b = self.standards[spec_name_b]
+        for pipe_spec_a, pipe_spec_b in itertools.combinations(standard_names, 2):
+            spec_a = self.standards[pipe_spec_a]
+            spec_b = self.standards[pipe_spec_b]
 
             if spec_a.diameter == spec_b.diameter:
                 continue
@@ -213,9 +213,9 @@ class CatalogLoader:
             self.standards[spec_b.name].components[reducer_name] = reducer_obj
             print(f"  -> Skapade '{reducer_name}' med längd {reducer_obj.length:.2f} mm.")
 
-    def get_spec(self, spec_name: str) -> Optional[PipeSpecData]:
+    def get_spec(self, pipe_spec: str) -> Optional[PipeSpecData]:
         """Hämtar en färdigbearbetad specifikation via dess namn (t.ex. 'SMS_25')."""
-        return self.standards.get(spec_name)
+        return self.standards.get(pipe_spec)
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(__file__)

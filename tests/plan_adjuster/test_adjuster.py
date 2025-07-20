@@ -31,9 +31,9 @@ def test_pen_traversal_structure(catalog):
     ]
     
     semantic_plan: BuildPlan = [
-        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_0', 'spec_name': 'SMS_25'},
-        {'type': 'STRAIGHT', 'spec_name': 'SMS_25'},
-        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_1', 'spec_name': 'SMS_25'}
+        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_0', 'pipe_spec': 'SMS_25'},
+        {'type': 'STRAIGHT', 'pipe_spec': 'SMS_25'},
+        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_1', 'pipe_spec': 'SMS_25'}
     ]
     
     graph = nx.Graph() # Tom graf, behövs ej för denna logik
@@ -67,11 +67,11 @@ def test_pen_draws_adjusted_straight_lines(catalog):
     ]
     
     semantic_plan: BuildPlan = [
-        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_0', 'spec_name': 'SMS_25'},
-        {'type': 'STRAIGHT', 'spec_name': 'SMS_25'},
-        {'type': 'COMPONENT', 'component_name': 'BEND_90', 'node_id': 'node_1', 'spec_name': 'SMS_25'},
-        {'type': 'STRAIGHT', 'spec_name': 'SMS_25'},
-        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_2', 'spec_name': 'SMS_25'}
+        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_0', 'pipe_spec': 'SMS_25'},
+        {'type': 'STRAIGHT', 'pipe_spec': 'SMS_25'},
+        {'type': 'COMPONENT', 'component_name': 'BEND_90', 'node_id': 'node_1', 'pipe_spec': 'SMS_25'},
+        {'type': 'STRAIGHT', 'pipe_spec': 'SMS_25'},
+        {'type': 'COMPONENT', 'component_name': 'ENDPOINT', 'node_id': 'node_2', 'pipe_spec': 'SMS_25'}
     ]
     
     graph = nx.Graph()
