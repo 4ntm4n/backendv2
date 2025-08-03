@@ -23,7 +23,10 @@ MOCK_COMPONENT_CATALOG = {
     "TEE_SMS_38": {
         "type": "TEE", "branch_cte": 70.0, "run_cte": 70.0
     },
-    # --- NYTT TILLÄGG ---
+    "SHORT_TEE_SMS_38": {
+        "type": "TEE", "branch_cte": 70.0, "run_cte": 21.0
+    },
+    
     "REDUCED_TEE_SMS_38": {
         "type": "REDUCED_TEE",
         "run_cte": 70.0,  # Huvudröret är fortfarande standard
@@ -32,7 +35,17 @@ MOCK_COMPONENT_CATALOG = {
             "SMS_18": { "branch_cte": 55.0 },
             "SMS_12": { "branch_cte": 50.0 }
         }
+    },
+    "SHORT_REDUCED_TEE_SMS_38": {
+    "type": "REDUCED_TEE",
+    "run_cte": 70.0,
+    "branch_options": {
+        "SMS_25": { "branch_cte": 21.0 },
+        "SMS_18": { "branch_cte": 21.0 },
+        "SMS_12": { "branch_cte": 21.0 }
+        }
     }
+    #skapa komponent för konor (kanske inte ens behövs)
 }
 
 
@@ -161,8 +174,8 @@ class CustomBend(BaseBend):
 
 class BaseTee:
     """
-    Basklass för T-rör. Innehåller logik för att identifiera
-    run- och branch-riktningar.
+    Basklass för T-rör. Innehåller nu all gemensam logik för att
+    beräkna riktningar OCH bygga det slutgiltiga receptet.
     """
     def __init__(self, node: TeeNodeInfo, center_pos: Vec3):
         self.node = node
@@ -170,27 +183,42 @@ class BaseTee:
         self.component_type = 'TEE_BASE'
 
     def _get_directions(self, nodes_by_id: Dict[str, NodeInfo]) -> Dict[str, Vec3]:
-        """
-        Identifierar riktningsvektorerna för de två run-benen
-        och det enda branch-benet.
-        """
+        # (Denna metod är oförändrad)
         run_node_1 = nodes_by_id[self.node.run_node_ids[0]]
         run_node_2 = nodes_by_id[self.node.run_node_ids[1]]
         branch_node = nodes_by_id[self.node.branch_node_id]
 
-        # Beräkna normaliserade riktningsvektorer från centrum ut mot varje ansluten nod
         dir_run_1 = (Vec3(*run_node_1.coords) - self.center_pos).normalize()
         dir_run_2 = (Vec3(*run_node_2.coords) - self.center_pos).normalize()
         dir_branch = (Vec3(*branch_node.coords) - self.center_pos).normalize()
 
-        return {
-            "run1": dir_run_1,
-            "run2": dir_run_2,
-            "branch": dir_branch
-        }
+        return {"run1": dir_run_1, "run2": dir_run_2, "branch": dir_branch}
+
+    def _build_recipe(self, nodes_by_id: Dict[str, NodeInfo], run_tangent_len: float, branch_tangent_len: float) -> Tuple[List[Dict[str, Any]], Vec3, Vec3]:
+        """
+        NY HJÄLPMETOD: Bygger det kompletta receptet baserat på tangentlängder.
+        Detta eliminerar all kodduplicering från subklasserna.
+        """
+        directions = self._get_directions(nodes_by_id)
+        component_id = f"tee_{uuid.uuid4().hex[:8]}"
+        recipe = []
+
+        # Skapa de två "run"-tangenterna
+        run1_end = self.center_pos + (directions['run1'] * run_tangent_len)
+        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(run1_end).values())})
+
+        run2_end = self.center_pos + (directions['run2'] * run_tangent_len)
+        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(run2_end).values())})
+
+        # Skapa "branch"-tangenten
+        branch_end = self.center_pos + (directions['branch'] * branch_tangent_len)
+        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(branch_end).values())})
+        
+        # Pennans tillstånd efter ett T-rör är speciellt. Vi återgår till centrum.
+        return recipe, self.center_pos, directions['run1']
 
 class TeeEqual(BaseTee):
-    """ Expert-klass för ett standard, liksidigt T-rör. """
+    """ Expert-klass för ett standard, liksidigt T-rör. Nu förenklad. """
     def __init__(self, node: TeeNodeInfo, center_pos: Vec3, run_cte: float, branch_cte: float):
         super().__init__(node, center_pos)
         self.run_tangent_len = run_cte
@@ -198,62 +226,30 @@ class TeeEqual(BaseTee):
         self.component_type = 'TEE'
 
     def create_recipe(self, nodes_by_id: Dict[str, NodeInfo]) -> Tuple[List[Dict[str, Any]], Vec3, Vec3]:
-        """
-        Bygger receptet för ett T-rör. Ett T-rörs "slutposition" är alltid
-        dess centrum, och det har ingen enskild "utgående riktning".
-        """
-        directions = self._get_directions(nodes_by_id)
-        component_id = f"tee_{uuid.uuid4().hex[:8]}"
-        recipe = []
-
-        # Skapa de två "run"-tangenterna (B-måtten)
-        run1_end = self.center_pos + (directions['run1'] * self.run_tangent_len)
-        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(run1_end).values())})
-
-        run2_end = self.center_pos + (directions['run2'] * self.run_tangent_len)
-        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(run2_end).values())})
-
-        # Skapa "branch"-tangenten (A-måttet)
-        branch_end = self.center_pos + (directions['branch'] * self.branch_tangent_len)
-        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(branch_end).values())})
-
-        # Ett T-rör har inget naturligt "slut", så pennan återställs till centrum.
-        # Riktningen kan sättas till None eller en av riktningarna, beroende på hur vi vill hantera det.
-        return recipe, self.center_pos, directions['run1']
+        # Anropar bara hjälpmetoden med sina specifika mått.
+        return self._build_recipe(nodes_by_id, self.run_tangent_len, self.branch_tangent_len)
 
 class TeeReduced(BaseTee):
-    """ Expert-klass för ett nedminskat T-rör. """
+    """ Expert-klass för ett nedminskat T-rör. Nu förenklad. """
     def __init__(self, node: TeeNodeInfo, center_pos: Vec3, run_cte: float, branch_cte: float):
         super().__init__(node, center_pos)
-        # Denna klass är flexibel. Den tar emot de exakta CTE-måtten
-        # som bestämts av CenterlineBuilder.
         self.run_tangent_len = run_cte
         self.branch_tangent_len = branch_cte
         self.component_type = 'REDUCED_TEE'
 
     def create_recipe(self, nodes_by_id: Dict[str, NodeInfo]) -> Tuple[List[Dict[str, Any]], Vec3, Vec3]:
-        """
-        Bygger receptet för ett T-rör. Logiken är identisk med TeeEqual,
-        men den använder de specifika tangentlängder den fått tilldelad.
-        """
-        directions = self._get_directions(nodes_by_id)
-        component_id = f"tee_{uuid.uuid4().hex[:8]}"
-        recipe = []
-
-        # Skapa "run"-tangenterna (B-måtten)
-        run1_end = self.center_pos + (directions['run1'] * self.run_tangent_len)
-        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(run1_end).values())})
-
-        run2_end = self.center_pos + (directions['run2'] * self.run_tangent_len)
-        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(run2_end).values())})
-
-        # Skapa den nedminskade "branch"-tangenten (A-måttet)
-        branch_end = self.center_pos + (directions['branch'] * self.branch_tangent_len)
-        recipe.append({'id': f"line_{uuid.uuid4().hex[:8]}", 'component_id': component_id, 'component_type': self.component_type, 'type': 'LINE', 'start': tuple(vars(self.center_pos).values()), 'end': tuple(vars(branch_end).values())})
-
-        return recipe, self.center_pos, directions['run1']
+        # Anropar bara hjälpmetoden med sina specifika mått.
+        return self._build_recipe(nodes_by_id, self.run_tangent_len, self.branch_tangent_len)
+# =================================================================
 
 # =================================================================
+# === Klasser för olika typer av konor (reducers) ===
+# =================================================================
+
+# TODO
+# 1.1 skapa basklass för konor 
+# 1.2 skapa subklass för koncentriska konor
+# 2 (senare skapar vi subklass för excentriska konor)
 
 # =================================================================
 # === Huvudklass som anropas av centerline_builder ===
